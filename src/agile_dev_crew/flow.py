@@ -1,13 +1,12 @@
-"""CrewAI Flow: Iterative Agile Sprint with Self-Healing QA Rework Loop.
+"""CrewAI Flow: Hierarchical Cross-Functional Pod Orchestration (Approach 3).
 
-Orchestrates an event-driven workflow using @start, @listen, and @router:
-1. @start: Backlog refinement & System architecture.
-2. @listen(or_(start, "rework_needed")): Senior Developer initial code or defect remediation.
-3. @listen(implement_code): QA Engineer automated test execution & security audit.
-4. @router(verify_qa): Evaluates QAReport. If tests fail or defects exist, routes back
-   to Senior Developer ("rework_needed") until all tests pass, or transitions to "qa_passed".
-5. @listen("qa_passed"): DevOps Release Lead generates deployment assets & sprint review.
-6. @listen("max_retries_exceeded"): Gracefully escalates unresolvable defects.
+Coordinates 3 specialized engineering pods:
+- Pod A: Product & Design Pod (Product Owner + UI/UX Designer)
+- Pod B: Full-Stack Engineering Pod (System Architect Manager + Backend & Frontend Developers)
+- Pod C: Quality & Platform Delivery Pod (QA Engineer + DevOps Release Lead)
+
+Includes an event-driven self-healing QA rework loop routing defects back to Pod B
+under the supervision of the System Architect until all tests pass.
 """
 
 import json
@@ -21,50 +20,60 @@ from crewai.flow.flow import Flow, listen, or_, router, start
 from agile_dev_crew.crew import AgileDevCrew
 from agile_dev_crew.schemas import (
     ArchitectureSpec,
+    BackendImplementation,
+    DesignSystemSpec,
+    FrontendImplementation,
     QAReport,
     SprintBacklog,
-    SprintImplementation,
     SprintReleasePackage,
 )
 
-logger = logging.getLogger("AgileSprintFlow")
+logger = logging.getLogger("HierarchicalPodSprintFlow")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-class SprintFlowState(BaseModel):
-    """Persistent state tracking across the iterative sprint flow lifecycle."""
+class PodSprintFlowState(BaseModel):
+    """Persistent state tracking across the multi-pod sprint lifecycle."""
 
     project_requirements: str = Field(
         default="",
-        description="Raw high-level business/technical requirement prompt"
+        description="Raw high-level business and technical requirement prompt"
     )
     sprint_backlog: Optional[SprintBacklog] = Field(
         default=None,
-        description="Structured backlog produced by the Product Owner"
+        description="Structured backlog and Gherkin criteria from Product Owner (Pod A)"
+    )
+    design_system: Optional[DesignSystemSpec] = Field(
+        default=None,
+        description="UI tokens, components, and wireframes from UI/UX Designer (Pod A)"
     )
     architecture_spec: Optional[ArchitectureSpec] = Field(
         default=None,
-        description="Technical design blueprint produced by the System Architect"
+        description="API contracts and system topology from System Architect (Pod B)"
     )
-    sprint_implementation: Optional[SprintImplementation] = Field(
+    backend_implementation: Optional[BackendImplementation] = Field(
         default=None,
-        description="Latest application source code produced by the Senior Developer"
+        description="Backend services, ORM models, and routes from Backend Dev (Pod B)"
+    )
+    frontend_implementation: Optional[FrontendImplementation] = Field(
+        default=None,
+        description="Client components, views, and hooks from Frontend Dev (Pod B)"
     )
     qa_report: Optional[QAReport] = Field(
         default=None,
-        description="Latest QA verification and security audit report"
+        description="QA verification and security audit report from QA Engineer (Pod C)"
     )
     release_package: Optional[SprintReleasePackage] = Field(
         default=None,
-        description="Final deployment assets and sprint review package"
+        description="Production container and CI/CD assets from DevOps Lead (Pod C)"
     )
     iteration_count: int = Field(
         default=0,
-        description="Current rework iteration counter between Senior Dev and QA"
+        description="Number of rework cycles between QA (Pod C) and Engineering (Pod B)"
     )
     max_iterations: int = Field(
         default=3,
-        description="Circuit-breaker limit on remediation loops to prevent infinite cycles"
+        description="Circuit-breaker threshold on rework iterations"
     )
     rework_history: List[str] = Field(
         default_factory=list,
@@ -72,171 +81,218 @@ class SprintFlowState(BaseModel):
     )
 
 
-class AgileSprintFlow(Flow[SprintFlowState]):
-    """Event-driven Agile Sprint workflow with an autonomous QA feedback rework loop."""
+class HierarchicalPodSprintFlow(Flow[PodSprintFlowState]):
+    """Orchestrates 3 cross-functional pods with hierarchical engineering and QA rework."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.crew_base = AgileDevCrew()
 
     # ==========================================================================
-    # Phase 1: Sprint Initiation & Architecture
+    # POD A: Product & Design Pod (PO + UI/UX Designer)
     # ==========================================================================
 
     @start()
-    def plan_and_architect(self) -> str:
-        """Phase 1: Product Owner refines backlog; System Architect designs blueprint."""
-        logger.info("🎬 [FLOW START] Initiating Agile Backlog Refinement & System Architecture...")
+    def run_product_design_pod(self) -> str:
+        """Pod A: Product Owner establishes backlog; UI/UX Designer builds Design System."""
+        logger.info("🎨 [POD A: PRODUCT & DESIGN] Starting Backlog Refinement & UI/UX Design...")
 
-        product_owner_agent = self.crew_base.product_owner()
-        system_architect_agent = self.crew_base.system_architect()
+        po_agent = self.crew_base.product_owner()
+        designer_agent = self.crew_base.ui_ux_designer()
 
-        # Task 1: Backlog Refinement
         refinement_task = Task(
             config=self.crew_base.tasks_config["backlog_refinement_task"],
-            agent=product_owner_agent,
+            agent=po_agent,
             output_pydantic=SprintBacklog,
         )
 
-        # Task 2: Architecture Design (depends on refinement)
-        arch_task = Task(
-            config=self.crew_base.tasks_config["architecture_design_task"],
-            agent=system_architect_agent,
+        design_task = Task(
+            config=self.crew_base.tasks_config["ui_ux_design_task"],
+            agent=designer_agent,
             context=[refinement_task],
-            output_pydantic=ArchitectureSpec,
+            output_pydantic=DesignSystemSpec,
         )
 
-        planning_crew = Crew(
-            agents=[product_owner_agent, system_architect_agent],
-            tasks=[refinement_task, arch_task],
+        pod_a = Crew(
+            agents=[po_agent, designer_agent],
+            tasks=[refinement_task, design_task],
             process=Process.sequential,
             verbose=True,
+            memory=True,
         )
 
-        planning_crew.kickoff(
-            inputs={"project_requirements": self.state.project_requirements}
-        )
+        pod_a.kickoff(inputs={"project_requirements": self.state.project_requirements})
 
         self.state.sprint_backlog = refinement_task.output.pydantic
-        self.state.architecture_spec = arch_task.output.pydantic
+        self.state.design_system = design_task.output.pydantic
 
         logger.info(
-            f"✅ [PLANNING COMPLETE] Sprint Goal: '{self.state.sprint_backlog.sprint_goal}' | "
-            f"Committed Points: {self.state.sprint_backlog.total_story_points}"
+            f"✅ [POD A COMPLETE] Sprint Goal: '{self.state.sprint_backlog.sprint_goal}' | "
+            f"Components Defined: {len(self.state.design_system.components)} | "
+            f"Wireframes: {len(self.state.design_system.layouts)}"
         )
-        return "planning_complete"
+        return "specs_ready"
 
     # ==========================================================================
-    # Phase 2: Implementation & Rework Loop
+    # POD B: Full-Stack Engineering Pod (Architect Manager + Backend & Frontend)
     # ==========================================================================
 
-    @listen(or_(plan_and_architect, "rework_needed"))
-    def implement_code(self) -> str:
-        """Phase 2: Senior Developer writes initial code or fixes defects identified by QA."""
-        senior_dev = self.crew_base.senior_developer()
+    @listen(or_(run_product_design_pod, "rework_needed"))
+    def run_engineering_pod(self) -> str:
+        """Pod B: System Architect directs Backend and Frontend developers in hierarchical mode."""
+        architect = self.crew_base.system_architect()
+        backend_dev = self.crew_base.backend_developer()
+        frontend_dev = self.crew_base.frontend_developer()
 
         if self.state.iteration_count == 0:
-            logger.info("💻 [DEV PHASE] Senior Developer generating initial production codebase...")
-            dev_task = Task(
-                config=self.crew_base.tasks_config["sprint_implementation_task"],
-                agent=senior_dev,
-                output_pydantic=SprintImplementation,
+            logger.info("⚙️ [POD B: ENGINEERING] Initiating Full-Stack Implementation...")
+
+            arch_task = Task(
+                config=self.crew_base.tasks_config["architecture_contract_task"],
+                agent=architect,
+                output_pydantic=ArchitectureSpec,
             )
+
+            backend_task = Task(
+                config=self.crew_base.tasks_config["backend_implementation_task"],
+                agent=backend_dev,
+                context=[arch_task],
+                output_pydantic=BackendImplementation,
+            )
+
+            frontend_task = Task(
+                config=self.crew_base.tasks_config["frontend_implementation_task"],
+                agent=frontend_dev,
+                context=[arch_task, backend_task],
+                output_pydantic=FrontendImplementation,
+            )
+
+            pod_b = Crew(
+                agents=[backend_dev, frontend_dev],
+                tasks=[arch_task, backend_task, frontend_task],
+                process=Process.hierarchical,
+                manager_agent=architect,
+                verbose=True,
+                memory=True,
+            )
+
             context_inputs = {
                 "project_requirements": self.state.project_requirements,
                 "sprint_backlog": self.state.sprint_backlog.model_dump_json(indent=2),
-                "architecture_spec": self.state.architecture_spec.model_dump_json(indent=2),
+                "design_system": self.state.design_system.model_dump_json(indent=2),
             }
+            pod_b.kickoff(inputs=context_inputs)
+
+            self.state.architecture_spec = arch_task.output.pydantic
+            self.state.backend_implementation = backend_task.output.pydantic
+            self.state.frontend_implementation = frontend_task.output.pydantic
+
         else:
             logger.warning(
-                f"🔧 [REWORK LOOP #{self.state.iteration_count}] Senior Developer remediating QA defects..."
+                f"🔧 [POD B: REWORK LOOP #{self.state.iteration_count}] Architect delegating defect fixes..."
             )
-            # Extract failed tests and defects for targeted remediation
-            failed_tests = [
-                tc.model_dump()
-                for tc in self.state.qa_report.test_cases
-                if tc.status == "FAILED"
+            # Separate defects by tier for targeted remediation
+            backend_defects = [
+                d.model_dump()
+                for d in self.state.qa_report.defects
+                if d.target_tier in ("backend", "architecture")
             ]
-            defects = [d.model_dump() for d in self.state.qa_report.defects]
+            frontend_defects = [
+                d.model_dump()
+                for d in self.state.qa_report.defects
+                if d.target_tier in ("frontend", "ui_ux")
+            ]
 
             rework_prompt = (
-                f"REWORK ITERATION #{self.state.iteration_count} - CRITICAL DEFECT REMEDIATION:\n\n"
+                f"ENGINEERING POD REMEDIATION (Iteration #{self.state.iteration_count}):\n\n"
                 f"QA Sign-Off Status: {self.state.qa_report.sign_off_status}\n"
-                f"Failed Tests ({len(failed_tests)}):\n"
-                f"{json.dumps(failed_tests, indent=2)}\n\n"
-                f"Identified Defects ({len(defects)}):\n"
-                f"{json.dumps(defects, indent=2)}\n\n"
-                f"QA Commentary:\n{self.state.qa_report.qa_notes}\n\n"
-                f"CURRENT IMPLEMENTATION TO FIX:\n"
-                f"{self.state.sprint_implementation.model_dump_json(indent=2)}\n\n"
-                f"MANDATORY REMEDIATION DIRECTIVES:\n"
-                f"1. Fix the root causes for every single failing test listed above.\n"
-                f"2. Resolve all reported defects (boundary handling, validation, logic, or security).\n"
-                f"3. Preserve all existing working functionality (zero regression).\n"
-                f"4. Provide the complete, updated source files in the SprintImplementation schema."
+                f"Total Failed Tests: {self.state.qa_report.failed_tests}\n\n"
+                f"BACKEND DEFECTS TO FIX ({len(backend_defects)}):\n"
+                f"{json.dumps(backend_defects, indent=2)}\n\n"
+                f"FRONTEND DEFECTS TO FIX ({len(frontend_defects)}):\n"
+                f"{json.dumps(frontend_defects, indent=2)}\n\n"
+                f"QA AUDIT COMMENTARY:\n{self.state.qa_report.qa_notes}\n\n"
+                f"DIRECTIVES FOR SYSTEM ARCHITECT & DEVELOPERS:\n"
+                f"1. Architect: Coordinate fix across tiers, preserving contract alignment.\n"
+                f"2. Backend Dev: Patch route errors, validation, or database logic.\n"
+                f"3. Frontend Dev: Resolve UI state mismatches, a11y contrast, or styling bugs.\n"
+                f"4. Deliver updated BackendImplementation and FrontendImplementation."
             )
 
-            dev_task = Task(
-                description=rework_prompt,
-                expected_output=(
-                    "A fully updated SprintImplementation object with all defects rectified, "
-                    "failing tests accommodated, and unabridged production source files."
-                ),
-                agent=senior_dev,
-                output_pydantic=SprintImplementation,
+            backend_rework_task = Task(
+                description=f"{rework_prompt}\n\nDeliver updated BackendImplementation.",
+                expected_output="An updated BackendImplementation with all backend defects resolved.",
+                agent=backend_dev,
+                output_pydantic=BackendImplementation,
             )
-            context_inputs = {}
 
-        dev_crew = Crew(
-            agents=[senior_dev],
-            tasks=[dev_task],
-            verbose=True,
-        )
-        dev_crew.kickoff(inputs=context_inputs)
-        self.state.sprint_implementation = dev_task.output.pydantic
+            frontend_rework_task = Task(
+                description=f"{rework_prompt}\n\nDeliver updated FrontendImplementation.",
+                expected_output="An updated FrontendImplementation with all frontend defects resolved.",
+                agent=frontend_dev,
+                output_pydantic=FrontendImplementation,
+            )
+
+            pod_b = Crew(
+                agents=[backend_dev, frontend_dev],
+                tasks=[backend_rework_task, frontend_rework_task],
+                process=Process.hierarchical,
+                manager_agent=architect,
+                verbose=True,
+                memory=True,
+            )
+            pod_b.kickoff()
+
+            self.state.backend_implementation = backend_rework_task.output.pydantic
+            self.state.frontend_implementation = frontend_rework_task.output.pydantic
 
         logger.info(
-            f"📦 [DEV DELIVERED] Codebase updated with {len(self.state.sprint_implementation.files)} files."
+            f"📦 [POD B DELIVERED] Backend: "
+            f"{len(self.state.backend_implementation.api_endpoints_and_routers)} routes, "
+            f"{len(self.state.backend_implementation.orm_and_db_models)} models | "
+            f"Frontend: {len(self.state.frontend_implementation.ui_components)} components, "
+            f"{len(self.state.frontend_implementation.pages_and_views)} views"
         )
-        return "code_implemented"
+        return "engineering_complete"
 
     # ==========================================================================
-    # Phase 3: QA Verification & Automated Testing
+    # POD C: Quality & Platform Delivery Pod (QA Engineer + DevOps Lead)
     # ==========================================================================
 
-    @listen(implement_code)
-    def verify_qa(self) -> str:
-        """Phase 3: QA Engineer audits code, executes pytest suites, and checks OWASP compliance."""
+    @listen(run_engineering_pod)
+    def run_qa_verification(self) -> str:
+        """Pod C: QA Engineer executes full-stack test verification & security/a11y audit."""
         logger.info(
-            f"🧪 [QA AUDIT #{self.state.iteration_count}] QA Engineer running verification test suites..."
+            f"🧪 [POD C: QA AUDIT #{self.state.iteration_count}] Auditing Full-Stack Implementation..."
         )
 
-        qa_engineer = self.crew_base.qa_engineer()
+        qa_agent = self.crew_base.qa_engineer()
 
         qa_task = Task(
             description=(
-                f"Perform exhaustive Quality Assurance and Security Verification on the latest implementation.\n\n"
-                f"Sprint Backlog Acceptance Criteria:\n"
+                f"Execute thorough QA verification across backend and frontend tiers.\n\n"
+                f"Sprint Backlog User Stories & Gherkin ACs:\n"
                 f"{self.state.sprint_backlog.model_dump_json(indent=2)}\n\n"
-                f"Codebase Under Test:\n"
-                f"{self.state.sprint_implementation.model_dump_json(indent=2)}\n\n"
+                f"UI/UX Design System Guidelines:\n"
+                f"{self.state.design_system.model_dump_json(indent=2)}\n\n"
+                f"Backend Implementation:\n"
+                f"{self.state.backend_implementation.model_dump_json(indent=2)}\n\n"
+                f"Frontend Implementation:\n"
+                f"{self.state.frontend_implementation.model_dump_json(indent=2)}\n\n"
                 f"Verification Directives:\n"
-                f"1. Validate every Gherkin scenario defined in the user stories.\n"
-                f"2. Execute unit, integration, and security test suites.\n"
-                f"3. Check for edge cases, null handling, and OWASP Top 10 vulnerabilities.\n"
-                f"4. Set 'sign_off_status' to 'APPROVED' ONLY if total failed_tests == 0 and no HIGH/CRITICAL defects exist.\n"
-                f"   Otherwise set to 'REJECTED' or 'APPROVED_WITH_CONDITIONS'."
+                f"1. Verify all Gherkin acceptance criteria.\n"
+                f"2. Audit backend APIs for OWASP Top 10 vulnerabilities.\n"
+                f"3. Audit frontend components for WCAG 2.1 AA accessibility (contrast, ARIA).\n"
+                f"4. Tag every defect with its target_tier ('backend', 'frontend', 'architecture', 'ui_ux').\n"
+                f"5. Issue sign_off_status = 'APPROVED' ONLY if failed_tests == 0 and no HIGH/CRITICAL defects exist."
             ),
-            expected_output=(
-                "A complete QAReport object with test execution details, defect tracking, "
-                "OWASP security audit, and formal sign_off_status."
-            ),
-            agent=qa_engineer,
+            expected_output="A complete QAReport object evaluating the full-stack system.",
+            agent=qa_agent,
             output_pydantic=QAReport,
         )
 
         qa_crew = Crew(
-            agents=[qa_engineer],
+            agents=[qa_agent],
             tasks=[qa_task],
             verbose=True,
         )
@@ -244,7 +300,7 @@ class AgileSprintFlow(Flow[SprintFlowState]):
         self.state.qa_report = qa_task.output.pydantic
 
         logger.info(
-            f"📊 [QA RESULTS] Status: {self.state.qa_report.sign_off_status} | "
+            f"📊 [POD C: QA REPORT] Status: {self.state.qa_report.sign_off_status} | "
             f"Passed: {self.state.qa_report.passed_tests} | "
             f"Failed: {self.state.qa_report.failed_tests} | "
             f"Defects: {len(self.state.qa_report.defects)}"
@@ -252,114 +308,103 @@ class AgileSprintFlow(Flow[SprintFlowState]):
         return "qa_verified"
 
     # ==========================================================================
-    # Phase 4: Dynamic Router (The Feedback Loop Engine)
+    # Dynamic Router: Evaluates QA and routes back to Pod B or forwards to Release
     # ==========================================================================
 
-    @router(verify_qa)
+    @router(run_qa_verification)
     def evaluate_qa_results(self) -> str:
-        """Phase 4 Router: Evaluates QA report and routes back to Dev or proceeds to Release.
-
-        Routing Logic:
-        --------------
-        - If sign_off_status == 'APPROVED' and failed_tests == 0:
-            -> Route to 'qa_passed' (Release Lead builds deployment package).
-        - If tests failed or defects discovered:
-            - If iteration_count < max_iterations:
-                -> Increment iteration_count and route to 'rework_needed' (triggers Senior Dev).
-            - If iteration_count >= max_iterations:
-                -> Route to 'max_retries_exceeded' (circuit breaker prevents infinite loop).
-        """
+        """Routes failed QA reports back to Engineering Pod (Pod B) or proceeds to Deployment."""
         qa = self.state.qa_report
 
-        # Happy Path: 100% tests passed and formal approval granted
+        # Happy Path: 100% tests passed and approved
         if qa.sign_off_status == "APPROVED" and qa.failed_tests == 0:
-            logger.info("🎉 [ROUTER] QA Sign-Off APPROVED with 0 failures! Routing to deployment...")
+            logger.info("🎉 [ROUTER] Full-Stack QA Sign-Off APPROVED! Routing to Pod C Release...")
             return "qa_passed"
 
-        # Circuit Breaker: Prevent infinite loop if defects cannot be resolved autonomously
+        # Circuit Breaker: Prevent infinite rework loops
         if self.state.iteration_count >= self.state.max_iterations:
             logger.error(
-                f"🛑 [ROUTER] Max rework iterations ({self.state.max_iterations}) exceeded. "
-                "Routing to escalation handler..."
+                f"🛑 [ROUTER] Max rework iterations ({self.state.max_iterations}) reached. "
+                "Halting automated loop for human triage..."
             )
             return "max_retries_exceeded"
 
-        # Rework Required: Feed defect report back into Senior Developer
+        # Rework Required: Feed defect report back into Pod B
         self.state.iteration_count += 1
-        rework_summary = (
-            f"Iteration {self.state.iteration_count}: {qa.failed_tests} failed test(s), "
-            f"{len(qa.defects)} defect(s). Reason: {qa.qa_notes}"
+        summary = (
+            f"Iteration {self.state.iteration_count}: {qa.failed_tests} failed tests, "
+            f"{len(qa.defects)} defects. Notes: {qa.qa_notes}"
         )
-        self.state.rework_history.append(rework_summary)
+        self.state.rework_history.append(summary)
 
         logger.warning(
-            f"🔁 [ROUTER] QA Verification FAILED (Iteration {self.state.iteration_count}/"
-            f"{self.state.max_iterations}). Routing failed report back to Senior Developer..."
+            f"🔁 [ROUTER] QA FAILED ({self.state.iteration_count}/{self.state.max_iterations}). "
+            "Routing defect report back to Engineering Pod (Pod B)..."
         )
         return "rework_needed"
 
     # ==========================================================================
-    # Phase 5: Deployment & Release or Escalation
+    # POD C: Final Release & Delivery
     # ==========================================================================
 
     @listen("qa_passed")
-    def finalize_deployment(self) -> SprintReleasePackage:
-        """Phase 5A: DevOps Lead generates container, CI/CD, and release review package."""
-        logger.info("🚀 [RELEASE] QA sign-off confirmed. DevOps Lead finalizing release package...")
+    def run_delivery_pod(self) -> SprintReleasePackage:
+        """Pod C: DevOps Release Lead builds full-stack Docker, CI/CD, and Sprint Review."""
+        logger.info("🚀 [POD C: DELIVERY] Finalizing full-stack deployment and Sprint Governance...")
 
         devops_agent = self.crew_base.devops_release_lead()
 
         release_task = Task(
             description=(
-                f"Compile the production deployment assets and Sprint Review package.\n\n"
+                f"Compile full-stack containerization assets and Sprint Review package.\n\n"
                 f"Sprint Goal: {self.state.sprint_backlog.sprint_goal}\n"
                 f"Rework Cycles Completed: {self.state.iteration_count}\n"
-                f"Final QA Test Pass Rate: {self.state.qa_report.passed_tests}/"
-                f"{self.state.qa_report.total_tests}\n"
-                f"Coverage: {self.state.qa_report.code_coverage_percentage}%\n\n"
                 f"Architecture Spec:\n{self.state.architecture_spec.model_dump_json(indent=2)}\n\n"
-                f"Verified Codebase:\n{self.state.sprint_implementation.model_dump_json(indent=2)}\n\n"
-                f"Generate production Dockerfile, docker-compose.yml, GitHub Actions CI/CD workflow, "
-                f"calculate release readiness score, and compile the final sprint review summary."
+                f"Backend Modules:\n{self.state.backend_implementation.model_dump_json(indent=2)}\n\n"
+                f"Frontend Components:\n{self.state.frontend_implementation.model_dump_json(indent=2)}\n\n"
+                f"QA Sign-Off Audit:\n{self.state.qa_report.model_dump_json(indent=2)}\n\n"
+                f"Generate:\n"
+                f"1. Multi-stage Dockerfile for FastAPI backend.\n"
+                f"2. Multi-stage Dockerfile for Next.js frontend.\n"
+                f"3. Root docker-compose.yml orchestrating postgres, redis, backend, and frontend.\n"
+                f"4. GitHub Actions CI/CD workflow (.github/workflows/pipeline.yml).\n"
+                f"5. Calculate composite Release Readiness Score and formulate Sprint Review & Retrospective."
             ),
-            expected_output=(
-                "A complete SprintReleasePackage object with container files, CI/CD YAML, "
-                "and Sprint Review notes."
-            ),
+            expected_output="A complete SprintReleasePackage object ready for production deployment.",
             agent=devops_agent,
             output_pydantic=SprintReleasePackage,
         )
 
-        devops_crew = Crew(
+        delivery_crew = Crew(
             agents=[devops_agent],
             tasks=[release_task],
             verbose=True,
         )
-        devops_crew.kickoff()
+        delivery_crew.kickoff()
         self.state.release_package = release_task.output.pydantic
 
         logger.info(
             f"🏁 [SPRINT RELEASE READY] Version: {self.state.release_package.release_version} | "
-            f"Readiness Score: {self.state.release_package.release_readiness_score}/100.0"
+            f"Readiness Score: {self.state.release_package.release_readiness_score}/100.0 | "
+            f"Signoff: {self.state.release_package.release_signoff}"
         )
         return self.state.release_package
 
     @listen("max_retries_exceeded")
     def handle_blocked_sprint(self) -> dict:
-        """Phase 5B: Circuit breaker handler documenting blocking defects for human review."""
+        """Handles circuit-breaker tripping by compiling an executive escalation report."""
         logger.critical(
-            "🚨 [ESCALATION] Sprint execution halted: Unresolved defects persist after "
-            f"{self.state.max_iterations} remediation cycles."
+            "🚨 [ESCALATION] Sprint execution halted: Blocking defects unresolved after "
+            f"{self.state.max_iterations} cycles."
         )
-        escalation_report = {
+        return {
             "status": "BLOCKED_AWAITING_HUMAN_TRIAGE",
             "iterations_attempted": self.state.iteration_count,
             "failed_tests_count": self.state.qa_report.failed_tests,
             "defects_summary": [d.model_dump() for d in self.state.qa_report.defects],
             "rework_history": self.state.rework_history,
             "remediation_recommendation": (
-                "Human engineering lead required to inspect architecture constraints "
-                "or re-scope acceptance criteria."
+                "Human engineering manager required to arbitrate API contract drift "
+                "or re-scope frontend/backend acceptance criteria."
             ),
         }
-        return escalation_report

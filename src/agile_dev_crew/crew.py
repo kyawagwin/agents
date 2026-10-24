@@ -1,7 +1,7 @@
-"""CrewAI Orchestration for Agile Software Development Team.
+"""CrewAI Orchestration for Agile Software Development Team (Pod Architecture).
 
-Defines the AgileDevCrew class decorated with @CrewBase, wiring agents, tasks,
-custom/standard tools, Pydantic data contracts, and execution processes.
+Defines the AgileDevCrew class decorated with @CrewBase, wiring 7 specialized agents,
+tasks, tools, Pydantic schemas, and pod factory methods for multi-crew coordination.
 """
 
 import os
@@ -19,9 +19,11 @@ from crewai_tools import (
 
 from agile_dev_crew.schemas import (
     ArchitectureSpec,
+    BackendImplementation,
+    DesignSystemSpec,
+    FrontendImplementation,
     QAReport,
     SprintBacklog,
-    SprintImplementation,
     SprintReleasePackage,
 )
 
@@ -35,8 +37,9 @@ def initialize_search_tool() -> Any:
     def domain_market_research_tool(query: str) -> str:
         """Search industry standards, competitor capabilities, and technical best practices."""
         return (
-            f"Synthesized research for '{query}': High demand for modern, reliable, and secure "
-            "API architecture adhering to OpenAPI 3.1 standards, robust authentication, and sub-100ms response SLAs."
+            f"Synthesized research for '{query}': Modern, reliable, and secure "
+            "full-stack architecture with FastAPI backend and Next.js frontend, "
+            "adhering to OpenAPI 3.1 standards, Tailwind CSS design tokens, and WCAG AA guidelines."
         )
 
     return domain_market_research_tool
@@ -44,7 +47,7 @@ def initialize_search_tool() -> Any:
 
 @CrewBase
 class AgileDevCrew:
-    """Production-ready multi-agent Agile Software Development Crew."""
+    """Production-ready multi-agent Agile Software Development Crew with 3 Pods."""
 
     agents_config = "config/agents.yaml"
     tasks_config = "config/tasks.yaml"
@@ -58,12 +61,12 @@ class AgileDevCrew:
         self.search_tool = initialize_search_tool()
 
     # ==========================================================================
-    # Agent Definitions
+    # POD A AGENTS: Product & Design
     # ==========================================================================
 
     @agent
     def product_owner(self) -> Agent:
-        """Product Owner: Converts business requirements into INVEST stories and Gherkin ACs."""
+        """Product Owner: Converts raw requirements into INVEST stories and Gherkin ACs."""
         return Agent(
             config=self.agents_config["product_owner"],
             tools=[self.search_tool, self.file_read_tool],
@@ -72,8 +75,22 @@ class AgileDevCrew:
         )
 
     @agent
+    def ui_ux_designer(self) -> Agent:
+        """UI/UX Designer: Builds Design Systems, Tailwind tokens, and wireframe layouts."""
+        return Agent(
+            config=self.agents_config["ui_ux_designer"],
+            tools=[self.file_read_tool, self.file_write_tool, self.search_tool],
+            verbose=True,
+            memory=True,
+        )
+
+    # ==========================================================================
+    # POD B AGENTS: Full-Stack Engineering (Hierarchical)
+    # ==========================================================================
+
+    @agent
     def system_architect(self) -> Agent:
-        """System Architect: Creates technical blueprints, API schemas, and data models."""
+        """System Architect & Pod Manager: Creates technical blueprints, API contracts, and supervises dev."""
         return Agent(
             config=self.agents_config["system_architect"],
             tools=[self.file_read_tool, self.file_write_tool, self.dir_read_tool],
@@ -82,18 +99,32 @@ class AgileDevCrew:
         )
 
     @agent
-    def senior_developer(self) -> Agent:
-        """Senior Developer: Implements clean, production-ready SOLID code."""
+    def backend_developer(self) -> Agent:
+        """Backend Developer: Implements ORM models, domain logic, and FastAPI REST endpoints."""
         return Agent(
-            config=self.agents_config["senior_developer"],
+            config=self.agents_config["backend_developer"],
             tools=[self.file_write_tool, self.file_read_tool, self.code_interpreter_tool],
             verbose=True,
             memory=True,
         )
 
     @agent
+    def frontend_developer(self) -> Agent:
+        """Frontend Developer: Implements Next.js/React components and API integration."""
+        return Agent(
+            config=self.agents_config["frontend_developer"],
+            tools=[self.file_write_tool, self.file_read_tool, self.code_interpreter_tool],
+            verbose=True,
+            memory=True,
+        )
+
+    # ==========================================================================
+    # POD C AGENTS: Quality & Platform Delivery
+    # ==========================================================================
+
+    @agent
     def qa_engineer(self) -> Agent:
-        """QA Engineer: Executes automated pytest suites and OWASP Top 10 security audits."""
+        """QA Engineer: Executes automated pytest suites and OWASP/a11y audits."""
         return Agent(
             config=self.agents_config["qa_engineer"],
             tools=[self.code_interpreter_tool, self.file_read_tool, self.file_write_tool],
@@ -103,7 +134,7 @@ class AgileDevCrew:
 
     @agent
     def devops_release_lead(self) -> Agent:
-        """DevOps Release Lead: Builds container/CI-CD assets and governs the sprint release."""
+        """DevOps Release Lead: Builds multi-tier Docker, CI/CD, and release review package."""
         return Agent(
             config=self.agents_config["devops_release_lead"],
             tools=[self.file_write_tool, self.file_read_tool, self.dir_read_tool],
@@ -112,12 +143,12 @@ class AgileDevCrew:
         )
 
     # ==========================================================================
-    # Task Definitions (Pipeline & Context Chaining)
+    # Task Definitions
     # ==========================================================================
 
     @task
     def backlog_refinement_task(self) -> Task:
-        """Task 1: Product Owner refines raw requirements into structured SprintBacklog."""
+        """Task 1 (Pod A): Product Owner refines requirements into SprintBacklog."""
         return Task(
             config=self.tasks_config["backlog_refinement_task"],
             agent=self.product_owner(),
@@ -125,87 +156,129 @@ class AgileDevCrew:
         )
 
     @task
-    def architecture_design_task(self) -> Task:
-        """Task 2: Architect consumes SprintBacklog and produces ArchitectureSpec."""
+    def ui_ux_design_task(self) -> Task:
+        """Task 2 (Pod A): UI/UX Designer produces DesignSystemSpec."""
         return Task(
-            config=self.tasks_config["architecture_design_task"],
-            agent=self.system_architect(),
+            config=self.tasks_config["ui_ux_design_task"],
+            agent=self.ui_ux_designer(),
             context=[self.backlog_refinement_task()],
+            output_pydantic=DesignSystemSpec,
+        )
+
+    @task
+    def architecture_contract_task(self) -> Task:
+        """Task 3 (Pod B): Architect designs system topology and API contracts."""
+        return Task(
+            config=self.tasks_config["architecture_contract_task"],
+            agent=self.system_architect(),
+            context=[self.backlog_refinement_task(), self.ui_ux_design_task()],
             output_pydantic=ArchitectureSpec,
         )
 
     @task
-    def sprint_implementation_task(self) -> Task:
-        """Task 3: Senior Dev consumes Backlog & Architecture to produce SprintImplementation."""
+    def backend_implementation_task(self) -> Task:
+        """Task 4 (Pod B): Backend Developer implements API endpoints and database models."""
         return Task(
-            config=self.tasks_config["sprint_implementation_task"],
-            agent=self.senior_developer(),
+            config=self.tasks_config["backend_implementation_task"],
+            agent=self.backend_developer(),
+            context=[self.backlog_refinement_task(), self.architecture_contract_task()],
+            output_pydantic=BackendImplementation,
+        )
+
+    @task
+    def frontend_implementation_task(self) -> Task:
+        """Task 5 (Pod B): Frontend Developer implements Next.js client and UI components."""
+        return Task(
+            config=self.tasks_config["frontend_implementation_task"],
+            agent=self.frontend_developer(),
             context=[
-                self.backlog_refinement_task(),
-                self.architecture_design_task(),
+                self.ui_ux_design_task(),
+                self.architecture_contract_task(),
+                self.backend_implementation_task(),
             ],
-            output_pydantic=SprintImplementation,
+            output_pydantic=FrontendImplementation,
         )
 
     @task
     def qa_verification_task(self) -> Task:
-        """Task 4: QA Engineer verifies implementation against acceptance criteria."""
+        """Task 6 (Pod C): QA audits full-stack implementation and verifies acceptance criteria."""
         return Task(
             config=self.tasks_config["qa_verification_task"],
             agent=self.qa_engineer(),
             context=[
                 self.backlog_refinement_task(),
-                self.sprint_implementation_task(),
+                self.ui_ux_design_task(),
+                self.backend_implementation_task(),
+                self.frontend_implementation_task(),
             ],
             output_pydantic=QAReport,
         )
 
     @task
     def deployment_and_sprint_review_task(self) -> Task:
-        """Task 5: DevOps Lead synthesizes deliverables into deployment assets & release package."""
+        """Task 7 (Pod C): DevOps Lead packages full-stack deployment and governs release."""
         return Task(
             config=self.tasks_config["deployment_and_sprint_review_task"],
             agent=self.devops_release_lead(),
             context=[
-                self.architecture_design_task(),
-                self.sprint_implementation_task(),
+                self.architecture_contract_task(),
+                self.backend_implementation_task(),
+                self.frontend_implementation_task(),
                 self.qa_verification_task(),
             ],
             output_pydantic=SprintReleasePackage,
         )
 
     # ==========================================================================
-    # Crew Orchestration
+    # Pod Factory Methods (Approach 3: Multi-Crew Pods)
+    # ==========================================================================
+
+    def product_design_pod(self) -> Crew:
+        """Pod A: Product Owner & UI/UX Designer establish specifications."""
+        return Crew(
+            agents=[self.product_owner(), self.ui_ux_designer()],
+            tasks=[self.backlog_refinement_task(), self.ui_ux_design_task()],
+            process=Process.sequential,
+            verbose=True,
+            memory=True,
+        )
+
+    def engineering_pod(self) -> Crew:
+        """Pod B: Hierarchical Engineering Pod managed by System Architect."""
+        return Crew(
+            agents=[self.backend_developer(), self.frontend_developer()],
+            tasks=[
+                self.architecture_contract_task(),
+                self.backend_implementation_task(),
+                self.frontend_implementation_task(),
+            ],
+            process=Process.hierarchical,
+            manager_agent=self.system_architect(),
+            verbose=True,
+            memory=True,
+        )
+
+    def delivery_pod(self) -> Crew:
+        """Pod C: QA Engineer & DevOps Release Lead govern verification and deployment."""
+        return Crew(
+            agents=[self.qa_engineer(), self.devops_release_lead()],
+            tasks=[self.qa_verification_task(), self.deployment_and_sprint_review_task()],
+            process=Process.sequential,
+            verbose=True,
+            memory=True,
+        )
+
+    # ==========================================================================
+    # Unified Crew (Fallback)
     # ==========================================================================
 
     @crew
     def crew(self) -> Crew:
-        """Creates and configures the Agile Software Development Crew.
-
-        Execution Modes:
-        ----------------
-        1. Sequential Mode (Default):
-           Executes tasks linearly from refinement -> architecture -> code -> QA -> release.
-           Context chaining ensures strict, deterministic Pydantic data contract transfers.
-
-        2. Hierarchical Mode (Iterative Coordination):
-           Allows a manager agent (e.g., Scrum Master / Engineering Manager) to supervise,
-           delegate tasks dynamically, and manage rework loops if QA identifies defects.
-           To enable hierarchical execution:
-             - Change `process=Process.sequential` to `process=Process.hierarchical`
-             - Set `manager_agent=self.devops_release_lead()` OR provide `manager_llm=ChatOpenAI(...)`
-        """
+        """Creates the full 7-agent Agile Development Crew."""
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
-            process=Process.sequential,  # Default: Sequential sprint pipeline
-            memory=True,                 # Shared vector & entity memory across sprint
+            process=Process.sequential,
+            memory=True,
             verbose=True,
-            # ------------------------------------------------------------------
-            # Uncomment the lines below to switch to Hierarchical Process:
-            # ------------------------------------------------------------------
-            # process=Process.hierarchical,
-            # manager_agent=self.devops_release_lead(), # Acting as Scrum Master & Manager
-            # # Or alternatively configure a manager LLM:
-            # # manager_llm=ChatOpenAI(model="gpt-4o", temperature=0.0),
         )

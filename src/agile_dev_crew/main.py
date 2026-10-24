@@ -1,9 +1,9 @@
-"""Main Entrypoint for Agile Dev Crew.
+"""Main Entrypoint for Agile Dev Crew (Pod Architecture).
 
-Supports two operational modes:
-1. Event-Driven Flow (Default): Uses CrewAI Flow (@start, @listen, @router) with an autonomous
-   QA rework loop routing failed reports back to the Senior Developer until all tests pass.
-2. Sequential Crew Pipeline: Executes the linear 5-stage sprint pipeline from refinement to release.
+Executes Approach 3: Hierarchical Cross-Functional Pod Sprint Flow:
+- Pod A: Product & Design Pod (Product Owner + UI/UX Designer)
+- Pod B: Engineering Pod (System Architect Manager + Backend & Frontend Developers)
+- Pod C: Quality & Delivery Pod (QA Engineer + DevOps Release Lead)
 """
 
 import json
@@ -13,66 +13,65 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agile_dev_crew.crew import AgileDevCrew
-from agile_dev_crew.flow import AgileSprintFlow
+from agile_dev_crew.flow import HierarchicalPodSprintFlow
 from agile_dev_crew.schemas import SprintReleasePackage
 
 SAMPLE_REQUIREMENTS = (
-    "Design and implement a production-ready, cloud-native Webhook Dispatcher & Event "
-    "Delivery Engine in Python using FastAPI and PostgreSQL. The service must:\n"
-    "1. Ingest event payloads via REST API with HMAC-SHA256 signature verification.\n"
-    "2. Persist events and target subscription destinations with status tracking.\n"
-    "3. Provide asynchronous webhook dispatching with exponential backoff retries (up to 5 attempts).\n"
-    "4. Implement a circuit breaker to pause deliveries to repeatedly failing endpoints.\n"
-    "5. Expose REST endpoints to register subscriptions, publish events, and query delivery audit logs.\n"
-    "6. Enforce strict input validation, comprehensive error handling, structured logging, and health checks."
+    "Design and implement a full-stack, cloud-native Webhook Dispatcher & Event Delivery Platform. "
+    "The system consists of:\n"
+    "1. Backend (FastAPI + PostgreSQL): Ingest JSON event payloads with HMAC-SHA256 signature verification, "
+    "persist subscription destinations, provide asynchronous webhook delivery with exponential backoff retries, "
+    "circuit breaker protection, and REST API endpoints for event publishing and audit logs.\n"
+    "2. Frontend (Next.js 14 + Tailwind CSS): Modern developer portal with subscription dashboard, real-time "
+    "delivery attempt logs, status badges, payload inspector, and endpoint configuration forms conforming "
+    "to WCAG 2.1 AA accessibility standards."
 )
 
 
 def run_flow() -> None:
-    """Executes the Agile Sprint Flow with the autonomous QA rework loop."""
+    """Executes Approach 3: Multi-Pod Sprint Flow with hierarchical engineering and QA rework."""
     load_dotenv()
     os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
 
     print("=" * 80)
-    print("🌊 INITIALIZING AGILE SPRINT FLOW: EVENT-DRIVEN QA REWORK LOOP")
+    print("🌊 INITIALIZING MULTI-POD SPRINT FLOW (APPROACH 3)")
     print("=" * 80)
-    print(f"Target Specification:\n{SAMPLE_REQUIREMENTS}\n")
-    print("Pipeline Architecture:")
-    print("  @start                  -> Product Owner & System Architect (Planning)")
-    print("  @listen(or_(start, ...)) -> Senior Developer (Initial Code or QA Rework)")
-    print("  @listen(implement_code) -> QA Engineer (Pytest Suites & OWASP Audit)")
-    print("  @router(verify_qa)      -> Evaluates QAReport (Pass -> Release | Fail -> Rework Loop)")
-    print("  @listen('qa_passed')    -> DevOps Release Lead (Dockerfile, CI/CD, Review)\n")
+    print(f"Target Feature Specification:\n{SAMPLE_REQUIREMENTS}\n")
+    print("Multi-Pod Architecture:")
+    print("  🎨 Pod A (Product & Design): Product Owner + UI/UX Designer")
+    print("  ⚙️ Pod B (Full-Stack Engineering): System Architect (Lead) + Backend & Frontend Devs")
+    print("  🧪 Pod C (Quality & Platform): QA Engineer + DevOps Release Lead")
+    print("  🔁 Router: Self-healing loop directing QA defects back to Pod B until sign-off.\n")
 
-    # Instantiate flow with initial state
-    flow = AgileSprintFlow()
+    # Instantiate the multi-pod flow
+    flow = HierarchicalPodSprintFlow()
     flow.state.project_requirements = SAMPLE_REQUIREMENTS
     flow.state.max_iterations = 3
 
-    # Kick off the event-driven loop
+    # Kick off the multi-pod sprint
     result = flow.kickoff()
 
     print("\n" + "=" * 80)
-    print("🏁 AGILE SPRINT FLOW EXECUTION FINISHED")
+    print("🏁 MULTI-POD SPRINT FLOW EXECUTION FINISHED")
     print("=" * 80)
 
     if isinstance(result, SprintReleasePackage):
-        _display_and_export_artifacts(result, iterations=flow.state.iteration_count)
+        _display_and_export_artifacts(result, flow)
     elif flow.state.release_package:
-        _display_and_export_artifacts(flow.state.release_package, iterations=flow.state.iteration_count)
+        _display_and_export_artifacts(flow.state.release_package, flow)
     else:
         print("Flow Result:", result)
 
 
 def run() -> None:
-    """Executes the standard linear sequential Crew pipeline."""
+    """Executes the 7-agent unified sequential Crew pipeline."""
     load_dotenv()
     os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
 
     inputs = {"project_requirements": SAMPLE_REQUIREMENTS}
 
     print("=" * 80)
-    print("🚀 INITIALIZING AGILE DEV CREW: LINEAR SPRINT EXECUTION")
+    print("🚀 INITIALIZING UNIFIED 7-AGENT CREW PIPELINE")
     print("=" * 80)
 
     crew_instance = AgileDevCrew()
@@ -80,21 +79,23 @@ def run() -> None:
     result = crew_runner.kickoff(inputs=inputs)
 
     print("\n" + "=" * 80)
-    print("🏁 LINEAR SPRINT PIPELINE COMPLETE")
+    print("🏁 UNIFIED CREW PIPELINE COMPLETE")
     print("=" * 80)
 
     if hasattr(result, "pydantic") and isinstance(result.pydantic, SprintReleasePackage):
-        _display_and_export_artifacts(result.pydantic, iterations=0)
+        _display_and_export_artifacts(result.pydantic)
     else:
         print("Raw Task Output:")
         print(result.raw if hasattr(result, "raw") else str(result))
 
 
-def _display_and_export_artifacts(release: SprintReleasePackage, iterations: int = 0) -> None:
+def _display_and_export_artifacts(release: SprintReleasePackage, flow: HierarchicalPodSprintFlow = None) -> None:
     """Renders the executive sprint review and saves deployment assets to disk."""
+    rework_count = flow.state.iteration_count if flow else 0
+
     print(f"\n📦 RELEASE VERSION: {release.release_version}")
     print(f"🎯 SPRINT GOAL: {release.sprint_goal}")
-    print(f"🔄 REWORK CYCLES COMPLETED: {iterations}")
+    print(f"🔄 REWORK CYCLES COMPLETED: {rework_count}")
     print(f"📊 RELEASE READINESS SCORE: {release.release_readiness_score}/100.0")
     print(f"✅ RELEASE SIGNOFF: {'APPROVED FOR PRODUCTION' if release.release_signoff else 'BLOCKED'}")
 
@@ -108,7 +109,8 @@ def _display_and_export_artifacts(release: SprintReleasePackage, iterations: int
     output_dir = Path("output/deployment")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dockerfile_path = output_dir / "Dockerfile"
+    backend_dockerfile = output_dir / "Dockerfile.backend"
+    frontend_dockerfile = output_dir / "Dockerfile.frontend"
     docker_compose_path = output_dir / "docker-compose.yml"
     github_workflow_dir = output_dir / ".github" / "workflows"
     github_workflow_dir.mkdir(parents=True, exist_ok=True)
@@ -116,7 +118,8 @@ def _display_and_export_artifacts(release: SprintReleasePackage, iterations: int
     env_example_path = output_dir / ".env.example"
     summary_path = output_dir / "sprint_review.json"
 
-    dockerfile_path.write_text(release.deployment_artifacts.dockerfile_content)
+    backend_dockerfile.write_text(release.deployment_artifacts.dockerfile_backend)
+    frontend_dockerfile.write_text(release.deployment_artifacts.dockerfile_frontend)
     docker_compose_path.write_text(release.deployment_artifacts.docker_compose_content)
     github_ci_path.write_text(release.deployment_artifacts.github_actions_ci_cd)
     env_example_path.write_text(release.deployment_artifacts.env_template)
@@ -124,8 +127,9 @@ def _display_and_export_artifacts(release: SprintReleasePackage, iterations: int
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(release.model_dump(), f, indent=2)
 
-    print(f"\n💾 Production deployment assets successfully written to '{output_dir.resolve()}':")
-    print(f"   - {dockerfile_path.name}")
+    print(f"\n💾 Full-Stack deployment assets successfully written to '{output_dir.resolve()}':")
+    print(f"   - {backend_dockerfile.name}")
+    print(f"   - {frontend_dockerfile.name}")
     print(f"   - {docker_compose_path.name}")
     print(f"   - {github_ci_path.relative_to(output_dir)}")
     print(f"   - {env_example_path.name}")

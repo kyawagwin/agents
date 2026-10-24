@@ -1,59 +1,77 @@
-# Agile Dev Crew: Autonomous Multi-Agent Software Development Team
+# Agile Dev Crew: Autonomous Multi-Pod Software Engineering Team
 
-A production-ready, enterprise-grade multi-agent software engineering system built with the [CrewAI](https://github.com/crewAIInc/crewAI) framework and Python 3.11+.
+A production-grade, enterprise-grade multi-agent software engineering system built with the [CrewAI](https://github.com/crewAIInc/crewAI) framework and Python 3.11+.
 
-This system operationalizes the **Agile Scrum methodology**, moving raw product requirements through:
-1. **Backlog Refinement** (Product Owner)
-2. **System Architecture & Technical Design** (System Architect)
-3. **Sprint Implementation & Remediation** (Senior Developer)
-4. **Automated QA & OWASP Security Audit** (QA Engineer)
-5. **DevOps Deployment & Sprint Governance** (DevOps Release Lead / Scrum Master)
+This system operationalizes **Approach 3: Hierarchical Cross-Functional Pods (Multi-Crew Orchestration)**, structuring 7 specialized agents into 3 collaborative pods coordinated by an event-driven master Flow with an automated QA rework loop.
 
 ---
 
-## 🌊 Event-Driven Flow Architecture (`AgileSprintFlow`)
-
-The system implements an autonomous, self-healing **CrewAI Flow** (`@start`, `@listen`, `@router`) that routes failed QA test reports back to the Senior Developer until all tests pass:
+## 🏛️ Pod Breakdown & Agent Roster
 
 ```mermaid
 flowchart TD
-    Start["@start()<br/><b>plan_and_architect</b><br/>(Product Owner & System Architect)"]
-    Start -->|"planning_complete"| Dev
+    Flow["🌊 <b>Master Sprint Flow</b><br/><code>HierarchicalPodSprintFlow</code>"]
+    Flow --> PodA
+    Flow --> PodB
+    Flow --> PodC
 
-    Dev["@listen(or_(plan_and_architect, 'rework_needed'))<br/><b>implement_code</b><br/>(Senior Developer: Initial Code / Bug Fixes)"]
-    Dev -->|"code_implemented"| QA
+    subgraph PodA ["🎨 <b>Pod A: Product & Design Pod</b>"]
+        direction TB
+        PO["<b>Product Owner</b><br/><code>product_owner</code>"] 
+        -->|"SprintBacklog (INVEST & Gherkin)"| UI["<b>UI/UX Designer</b><br/><code>ui_ux_designer</code>"]
+        UI -->|"DesignSystemSpec (Tailwind Tokens, Wireframes, A11y)"| PodAOut["Product & Design Artifacts"]
+    end
 
-    QA["@listen(implement_code)<br/><b>verify_qa</b><br/>(QA Engineer: pytest Suites & OWASP Audit)"]
-    QA --> Router
+    subgraph PodB ["⚙️ <b>Pod B: Full-Stack Engineering Pod (Hierarchical)</b>"]
+        direction TB
+        Arch["👑 <b>System Architect & Tech Lead</b><br/><code>system_architect</code> (manager_agent)"]
+        Arch -->|"OpenAPI Contracts & Schemas"| BE["<b>Backend Developer</b><br/><code>backend_developer</code>"]
+        Arch -->|"Component Specs & Contracts"| FE["<b>Frontend Developer</b><br/><code>frontend_developer</code>"]
+        BE <-->|"Coordinated via Architect"| FE
+        BE --> PodBOut["FullStackImplementation"]
+        FE --> PodBOut
+    end
 
-    Router{"@router(verify_qa)<br/><b>evaluate_qa_results</b><br/>Pass rate & sign_off_status?"}
-    
-    Router -->|"Failed tests or defects<br/>(iteration < max_iterations)"| Rework["rework_needed<br/>(Packages failed tests & defects)"]
-    Rework --> Dev
+    subgraph PodC ["🧪 <b>Pod C: Quality & Platform Delivery Pod</b>"]
+        direction TB
+        QA["<b>QA & Security Engineer</b><br/><code>qa_engineer</code>"]
+        QA -->|"QAReport"| Router{"QA Passed?"}
+        Router -->|"Approved"| DO["<b>DevOps Release Lead</b><br/><code>devops_release_lead</code>"]
+        DO --> Package["SprintReleasePackage<br/>(Dockerfiles, Compose, CI/CD, Review)"]
+    end
 
-    Router -->|"All tests pass & APPROVED<br/>(failed_tests == 0)"| Passed["qa_passed"]
-    Passed --> Deploy["@listen('qa_passed')<br/><b>finalize_deployment</b><br/>(DevOps Release Lead)"]
-    Deploy --> Release["SprintReleasePackage<br/>(Dockerfile, compose, CI/CD, Review)"]
-
-    Router -->|"iteration >= max_iterations<br/>(Circuit Breaker)"| Halt["max_retries_exceeded"]
-    Halt --> Escalate["@listen('max_retries_exceeded')<br/><b>handle_blocked_sprint</b><br/>(Escalate to Human Triage)"]
+    PodAOut -->|"Context"| PodB
+    PodBOut -->|"Code Under Test"| PodC
+    Router -.->|"Defects & Failed Tests (Rework Loop)"| PodB
 ```
 
 ---
 
-## Agent Roster
+## 7 Specialized Agent Personas
 
-| Agent | Role | Core Responsibilities | Tools |
+| Pod | Agent | Role | Core Responsibility |
 | :--- | :--- | :--- | :--- |
-| **Product Owner** | Principal Product Strategist | Decomposes raw requirements into INVEST user stories, Gherkin scenarios, Fibonacci sizing, and Definition of Done. | Web/Market Search, FileReadTool |
-| **System Architect** | Chief Systems Architect | Designs clean architecture, PostgreSQL/MongoDB schemas, REST/OpenAPI contracts, and NFRs. | FileReadTool, FileWriterTool, DirectoryReadTool |
-| **Senior Developer** | Staff Full-Stack Engineer | Writes complete, modular, production-grade source code; remediates QA defects. | FileWriterTool, FileReadTool, CodeInterpreterTool |
-| **QA Engineer** | Lead SDET & Security Specialist | Writes automated pytest suites matching Gherkin ACs, conducts static code and OWASP Top 10 security audits. | CodeInterpreterTool, FileReadTool, FileWriterTool |
-| **DevOps Release Lead** | Principal DevOps & Scrum Master | Creates multi-stage Dockerfiles, docker-compose, GitHub Actions CI/CD, and chairs Sprint Review / Retrospective. | FileWriterTool, FileReadTool, DirectoryReadTool |
+| **Pod A** | **Product Owner** (`product_owner`) | Principal Product Strategist | Decomposes raw requirements into INVEST user stories, Gherkin acceptance criteria, Fibonacci sizing, and Definition of Done. |
+| **Pod A** | **UI/UX Designer** (`ui_ux_designer`) | Lead Design Systems Architect | Designs modern Tailwind CSS design tokens, atomic UI component states, responsive wireframe layouts, and WCAG 2.1 AA a11y specifications. |
+| **Pod B** | **System Architect** (`system_architect`) | Principal Systems Architect & Pod Manager | Acts as Engineering Manager for Pod B; designs clean architecture, normalized DB schemas, and REST/OpenAPI contracts while directing developers. |
+| **Pod B** | **Backend Developer** (`backend_developer`) | Senior Backend Systems Engineer | Implements production-grade FastAPI REST endpoints, SQLAlchemy/SQLModel models, domain business logic, connection pooling, and HMAC authentication. |
+| **Pod B** | **Frontend Developer** (`frontend_developer`) | Senior Frontend Engineer | Implements Next.js 14 App Router views, React 18 components, client state hooks, and API integration matching the UI/UX tokens and OpenAPI schemas. |
+| **Pod C** | **QA Engineer** (`qa_engineer`) | Lead SDET & Security Specialist | Writes automated pytest suites for backend APIs, component test verification, conducts static code audit, OWASP Top 10 evaluation, and WCAG a11y checks. |
+| **Pod C** | **DevOps Release Lead** (`devops_release_lead`) | Principal DevOps & Scrum Master | Creates multi-stage Dockerfiles for backend and frontend, root docker-compose.yml, GitHub Actions CI/CD pipeline, and chairs the Sprint Review. |
 
 ---
 
-## Quickstart with `uv`
+## 🔄 Self-Healing QA Rework Loop
+
+The Flow maintains an autonomous feedback loop:
+1. When **QA Engineer** detects failing tests or defects in Pod C, the `@router` intercepts the failure.
+2. The router increments the iteration counter (`max_iterations = 3`) and routes the defect payload back to **Pod B**.
+3. In Pod B, the **System Architect** receives the defect log, separates backend vs. frontend defects, and directs the respective developer to fix root causes.
+4. Once QA signs off (`sign_off_status == "APPROVED"` and `failed_tests == 0`), the router directs to the **DevOps Release Lead** for release deployment.
+
+---
+
+## 🚀 Quickstart with `uv`
 
 ### 1. Prerequisites
 Ensure Python 3.11+ and `uv` are installed:
@@ -61,12 +79,12 @@ Ensure Python 3.11+ and `uv` are installed:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### 2. Environment Setup
+### 2. Configure Environment
 ```bash
 cp .env.example .env
 ```
-Fill in your API keys in `.env`:
-```ini
+Provide your API keys in `.env`:
+```env
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL_NAME=gpt-4o
 SERPER_API_KEY=...   # Optional: For web search tool
@@ -77,29 +95,30 @@ SERPER_API_KEY=...   # Optional: For web search tool
 uv sync
 ```
 
-### 4. Execute the Sprint
+### 4. Run the Autonomous Multi-Pod Sprint
 
-#### Option A: Event-Driven Flow with QA Rework Loop (Recommended)
+#### Event-Driven Multi-Pod Flow (Approach 3):
 ```bash
 uv run agile-dev-flow
-# Or directly:
+# Or directly via Python:
 uv run python -m agile_dev_crew.main
 ```
 
-#### Option B: Linear Sequential Sprint Pipeline
+#### Unified 7-Agent Linear Pipeline:
 ```bash
 uv run agile-dev-crew
-# Or with CLI flag:
+# Or directly via Python:
 uv run python -m agile_dev_crew.main --linear
 ```
 
 ---
 
-## Output Artifacts
+## 📦 Output Artifacts
 
-Upon completion of a sprint, the pipeline produces:
-1. `output/deployment/Dockerfile`: Production multi-stage Dockerfile.
-2. `output/deployment/docker-compose.yml`: Multi-service orchestration file.
-3. `output/deployment/.github/workflows/ci.yml`: Full GitHub Actions CI/CD pipeline.
-4. `output/deployment/.env.example`: Documented production environment template.
-5. `output/deployment/sprint_review.json`: Complete Sprint Review summary, velocity metrics, test sign-offs, and Kaizen retrospective insights.
+Upon completion of a sprint, the system exports full-stack deployment assets to `output/deployment/`:
+- `Dockerfile.backend`: Multi-stage Python 3.12 / FastAPI container.
+- `Dockerfile.frontend`: Multi-stage Node.js / Next.js 14 container.
+- `docker-compose.yml`: Multi-service orchestration (Postgres, Redis, Backend, Frontend).
+- `.github/workflows/ci.yml`: Full GitHub Actions CI/CD pipeline.
+- `.env.example`: Documented production environment configuration.
+- `sprint_review.json`: Sprint Review summary, velocity metrics, test sign-offs, and Kaizen retrospective insights.
