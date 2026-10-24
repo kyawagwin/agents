@@ -1,36 +1,42 @@
 # Agile Dev Crew: Autonomous Multi-Agent Software Development Team
 
-A production-ready, enterprise-grade multi-agent software engineering crew built with the [CrewAI](https://github.com/crewAIInc/crewAI) framework and Python 3.11+.
+A production-ready, enterprise-grade multi-agent software engineering system built with the [CrewAI](https://github.com/crewAIInc/crewAI) framework and Python 3.11+.
 
-This system operationalizes the **Agile Scrum methodology**, taking raw product requirements and moving them autonomously through:
+This system operationalizes the **Agile Scrum methodology**, moving raw product requirements through:
 1. **Backlog Refinement** (Product Owner)
 2. **System Architecture & Technical Design** (System Architect)
-3. **Sprint Implementation & Coding** (Senior Developer)
+3. **Sprint Implementation & Remediation** (Senior Developer)
 4. **Automated QA & OWASP Security Audit** (QA Engineer)
 5. **DevOps Deployment & Sprint Governance** (DevOps Release Lead / Scrum Master)
 
 ---
 
-## Architecture & Data Contract Pipeline
+## 🌊 Event-Driven Flow Architecture (`AgileSprintFlow`)
 
-All agent handoffs are strictly enforced using Pydantic `BaseModel` schemas via `output_pydantic`:
+The system implements an autonomous, self-healing **CrewAI Flow** (`@start`, `@listen`, `@router`) that routes failed QA test reports back to the Senior Developer until all tests pass:
 
 ```mermaid
 flowchart TD
-    Req["Raw Project Requirements<br/>(project_requirements)"] --> PO
+    Start["@start()<br/><b>plan_and_architect</b><br/>(Product Owner & System Architect)"]
+    Start -->|"planning_complete"| Dev
 
-    subgraph SprintLifecycle ["Autonomous Sprint Pipeline"]
-        PO["Product Owner<br/>(product_owner)"] -->|"SprintBacklog (INVEST Stories & Gherkin ACs)"| SA["System Architect<br/>(system_architect)"]
-        SA -->|"ArchitectureSpec (APIs, Schemas, NFRs)"| DEV["Senior Developer<br/>(senior_developer)"]
-        PO -.->|"Context: Stories & ACs"| DEV
-        DEV -->|"SprintImplementation (Full Source Code)"| QA["QA & Security Engineer<br/>(qa_engineer)"]
-        PO -.->|"Context: Gherkin ACs"| QA
-        QA -->|"QAReport (pytest Suites, Defects, OWASP)"| DO["DevOps Release Lead<br/>(devops_release_lead)"]
-        SA -.->|"Context: Arch Spec"| DO
-        DEV -.->|"Context: Implementation"| DO
-    end
+    Dev["@listen(or_(plan_and_architect, 'rework_needed'))<br/><b>implement_code</b><br/>(Senior Developer: Initial Code / Bug Fixes)"]
+    Dev -->|"code_implemented"| QA
 
-    DO --> Out["SprintReleasePackage<br/>(Dockerfile, compose, CI/CD, Sprint Review)"]
+    QA["@listen(implement_code)<br/><b>verify_qa</b><br/>(QA Engineer: pytest Suites & OWASP Audit)"]
+    QA --> Router
+
+    Router{"@router(verify_qa)<br/><b>evaluate_qa_results</b><br/>Pass rate & sign_off_status?"}
+    
+    Router -->|"Failed tests or defects<br/>(iteration < max_iterations)"| Rework["rework_needed<br/>(Packages failed tests & defects)"]
+    Rework --> Dev
+
+    Router -->|"All tests pass & APPROVED<br/>(failed_tests == 0)"| Passed["qa_passed"]
+    Passed --> Deploy["@listen('qa_passed')<br/><b>finalize_deployment</b><br/>(DevOps Release Lead)"]
+    Deploy --> Release["SprintReleasePackage<br/>(Dockerfile, compose, CI/CD, Review)"]
+
+    Router -->|"iteration >= max_iterations<br/>(Circuit Breaker)"| Halt["max_retries_exceeded"]
+    Halt --> Escalate["@listen('max_retries_exceeded')<br/><b>handle_blocked_sprint</b><br/>(Escalate to Human Triage)"]
 ```
 
 ---
@@ -41,7 +47,7 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Product Owner** | Principal Product Strategist | Decomposes raw requirements into INVEST user stories, Gherkin scenarios, Fibonacci sizing, and Definition of Done. | Web/Market Search, FileReadTool |
 | **System Architect** | Chief Systems Architect | Designs clean architecture, PostgreSQL/MongoDB schemas, REST/OpenAPI contracts, and NFRs. | FileReadTool, FileWriterTool, DirectoryReadTool |
-| **Senior Developer** | Staff Full-Stack Engineer | Writes complete, modular, production-grade source code following SOLID principles and type safety. | FileWriterTool, FileReadTool, CodeInterpreterTool |
+| **Senior Developer** | Staff Full-Stack Engineer | Writes complete, modular, production-grade source code; remediates QA defects. | FileWriterTool, FileReadTool, CodeInterpreterTool |
 | **QA Engineer** | Lead SDET & Security Specialist | Writes automated pytest suites matching Gherkin ACs, conducts static code and OWASP Top 10 security audits. | CodeInterpreterTool, FileReadTool, FileWriterTool |
 | **DevOps Release Lead** | Principal DevOps & Scrum Master | Creates multi-stage Dockerfiles, docker-compose, GitHub Actions CI/CD, and chairs Sprint Review / Retrospective. | FileWriterTool, FileReadTool, DirectoryReadTool |
 
@@ -56,9 +62,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 2. Environment Setup
-Clone or navigate to the project directory:
 ```bash
-cd /path/to/agents
 cp .env.example .env
 ```
 Fill in your API keys in `.env`:
@@ -69,40 +73,24 @@ SERPER_API_KEY=...   # Optional: For web search tool
 ```
 
 ### 3. Install Dependencies
-Sync dependencies into a managed virtual environment using `uv`:
 ```bash
 uv sync
 ```
 
 ### 4. Execute the Sprint
-Run the autonomous sprint pipeline:
+
+#### Option A: Event-Driven Flow with QA Rework Loop (Recommended)
 ```bash
-uv run agile-dev-crew
-# Or directly via Python:
+uv run agile-dev-flow
+# Or directly:
 uv run python -m agile_dev_crew.main
 ```
 
----
-
-## Switching to Hierarchical Mode
-
-By default, the orchestration runs in `Process.sequential` mode, which executes a deterministic linear sprint pipeline from refinement to release.
-
-To enable **Hierarchical Mode** (where the DevOps Release Lead acts as the Agile Scrum Master / Engineering Manager delegating tasks and triggering rework loops between QA and Dev):
-
-Edit `src/agile_dev_crew/crew.py`:
-```python
-@crew
-def crew(self) -> Crew:
-    return Crew(
-        agents=self.agents,
-        tasks=self.tasks,
-        process=Process.hierarchical,              # <-- Switch to hierarchical
-        manager_agent=self.devops_release_lead(),  # <-- Scrum Master manager
-        # Or alternatively: manager_llm=ChatOpenAI(model="gpt-4o"),
-        memory=True,
-        verbose=True,
-    )
+#### Option B: Linear Sequential Sprint Pipeline
+```bash
+uv run agile-dev-crew
+# Or with CLI flag:
+uv run python -m agile_dev_crew.main --linear
 ```
 
 ---

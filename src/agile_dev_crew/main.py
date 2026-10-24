@@ -1,7 +1,9 @@
 """Main Entrypoint for Agile Dev Crew.
 
-Demonstrates how to inject raw business requirements into the multi-agent pipeline,
-execute the autonomous sprint, and inspect the structured Pydantic outputs.
+Supports two operational modes:
+1. Event-Driven Flow (Default): Uses CrewAI Flow (@start, @listen, @router) with an autonomous
+   QA rework loop routing failed reports back to the Senior Developer until all tests pass.
+2. Sequential Crew Pipeline: Executes the linear 5-stage sprint pipeline from refinement to release.
 """
 
 import json
@@ -11,58 +13,88 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from agile_dev_crew.crew import AgileDevCrew
+from agile_dev_crew.flow import AgileSprintFlow
 from agile_dev_crew.schemas import SprintReleasePackage
+
+SAMPLE_REQUIREMENTS = (
+    "Design and implement a production-ready, cloud-native Webhook Dispatcher & Event "
+    "Delivery Engine in Python using FastAPI and PostgreSQL. The service must:\n"
+    "1. Ingest event payloads via REST API with HMAC-SHA256 signature verification.\n"
+    "2. Persist events and target subscription destinations with status tracking.\n"
+    "3. Provide asynchronous webhook dispatching with exponential backoff retries (up to 5 attempts).\n"
+    "4. Implement a circuit breaker to pause deliveries to repeatedly failing endpoints.\n"
+    "5. Expose REST endpoints to register subscriptions, publish events, and query delivery audit logs.\n"
+    "6. Enforce strict input validation, comprehensive error handling, structured logging, and health checks."
+)
+
+
+def run_flow() -> None:
+    """Executes the Agile Sprint Flow with the autonomous QA rework loop."""
+    load_dotenv()
+    os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
+
+    print("=" * 80)
+    print("🌊 INITIALIZING AGILE SPRINT FLOW: EVENT-DRIVEN QA REWORK LOOP")
+    print("=" * 80)
+    print(f"Target Specification:\n{SAMPLE_REQUIREMENTS}\n")
+    print("Pipeline Architecture:")
+    print("  @start                  -> Product Owner & System Architect (Planning)")
+    print("  @listen(or_(start, ...)) -> Senior Developer (Initial Code or QA Rework)")
+    print("  @listen(implement_code) -> QA Engineer (Pytest Suites & OWASP Audit)")
+    print("  @router(verify_qa)      -> Evaluates QAReport (Pass -> Release | Fail -> Rework Loop)")
+    print("  @listen('qa_passed')    -> DevOps Release Lead (Dockerfile, CI/CD, Review)\n")
+
+    # Instantiate flow with initial state
+    flow = AgileSprintFlow()
+    flow.state.project_requirements = SAMPLE_REQUIREMENTS
+    flow.state.max_iterations = 3
+
+    # Kick off the event-driven loop
+    result = flow.kickoff()
+
+    print("\n" + "=" * 80)
+    print("🏁 AGILE SPRINT FLOW EXECUTION FINISHED")
+    print("=" * 80)
+
+    if isinstance(result, SprintReleasePackage):
+        _display_and_export_artifacts(result, iterations=flow.state.iteration_count)
+    elif flow.state.release_package:
+        _display_and_export_artifacts(flow.state.release_package, iterations=flow.state.iteration_count)
+    else:
+        print("Flow Result:", result)
 
 
 def run() -> None:
-    """Kick off the Agile Development Crew with a production-grade feature requirement."""
-    # Load environment variables from .env file
+    """Executes the standard linear sequential Crew pipeline."""
     load_dotenv()
+    os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
 
-    # Define a realistic, high-value enterprise engineering requirement
-    sample_requirements = (
-        "Design and implement a production-ready, cloud-native Webhook Dispatcher & Event "
-        "Delivery Engine in Python using FastAPI and PostgreSQL. The service must:\n"
-        "1. Ingest event payloads via REST API with HMAC-SHA256 signature verification.\n"
-        "2. Persist events and target subscription destinations with status tracking.\n"
-        "3. Provide asynchronous webhook dispatching with exponential backoff retries (up to 5 attempts).\n"
-        "4. Implement a circuit breaker to pause deliveries to repeatedly failing endpoints.\n"
-        "5. Expose REST endpoints to register subscriptions, publish events, and query delivery audit logs.\n"
-        "6. Enforce strict input validation, comprehensive error handling, structured logging, and health checks."
-    )
-
-    inputs = {
-        "project_requirements": sample_requirements
-    }
+    inputs = {"project_requirements": SAMPLE_REQUIREMENTS}
 
     print("=" * 80)
-    print("🚀 INITIALIZING AGILE DEV CREW: AUTONOMOUS SPRINT EXECUTION")
+    print("🚀 INITIALIZING AGILE DEV CREW: LINEAR SPRINT EXECUTION")
     print("=" * 80)
-    print(f"Sprint Target:\n{sample_requirements}\n")
-    print("Beginning Backlog Refinement -> Architecture -> Implementation -> QA -> Release...\n")
 
-    # Instantiate and execute the Crew
     crew_instance = AgileDevCrew()
     crew_runner = crew_instance.crew()
     result = crew_runner.kickoff(inputs=inputs)
 
     print("\n" + "=" * 80)
-    print("🏁 SPRINT PIPELINE EXECUTION COMPLETE")
+    print("🏁 LINEAR SPRINT PIPELINE COMPLETE")
     print("=" * 80)
 
-    # Process and display structured release package
     if hasattr(result, "pydantic") and isinstance(result.pydantic, SprintReleasePackage):
-        release_package: SprintReleasePackage = result.pydantic
-        _display_and_export_artifacts(release_package)
+        _display_and_export_artifacts(result.pydantic, iterations=0)
     else:
         print("Raw Task Output:")
         print(result.raw if hasattr(result, "raw") else str(result))
 
 
-def _display_and_export_artifacts(release: SprintReleasePackage) -> None:
+def _display_and_export_artifacts(release: SprintReleasePackage, iterations: int = 0) -> None:
     """Renders the executive sprint review and saves deployment assets to disk."""
     print(f"\n📦 RELEASE VERSION: {release.release_version}")
     print(f"🎯 SPRINT GOAL: {release.sprint_goal}")
+    print(f"🔄 REWORK CYCLES COMPLETED: {iterations}")
     print(f"📊 RELEASE READINESS SCORE: {release.release_readiness_score}/100.0")
     print(f"✅ RELEASE SIGNOFF: {'APPROVED FOR PRODUCTION' if release.release_signoff else 'BLOCKED'}")
 
@@ -73,7 +105,6 @@ def _display_and_export_artifacts(release: SprintReleasePackage) -> None:
     for idx, obs in enumerate(release.retrospective_observations, start=1):
         print(f"  {idx}. {obs}")
 
-    # Export generated DevOps assets to disk
     output_dir = Path("output/deployment")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -89,7 +120,7 @@ def _display_and_export_artifacts(release: SprintReleasePackage) -> None:
     docker_compose_path.write_text(release.deployment_artifacts.docker_compose_content)
     github_ci_path.write_text(release.deployment_artifacts.github_actions_ci_cd)
     env_example_path.write_text(release.deployment_artifacts.env_template)
-    
+
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(release.model_dump(), f, indent=2)
 
@@ -102,4 +133,7 @@ def _display_and_export_artifacts(release: SprintReleasePackage) -> None:
 
 
 if __name__ == "__main__":
-    run()
+    if len(sys.argv) > 1 and sys.argv[1] == "--linear":
+        run()
+    else:
+        run_flow()

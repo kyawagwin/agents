@@ -15,6 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
+agile-dev-flow = "agile_dev_crew.main:run_flow"
 agile-dev-crew = "agile_dev_crew.main:run"
 
 [build-system]
