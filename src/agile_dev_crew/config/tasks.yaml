@@ -1,0 +1,109 @@
+backlog_refinement_task:
+  description: >
+    Perform a comprehensive Agile Backlog Refinement session based on the provided project requirements:
+    
+    "{project_requirements}"
+    
+    Execute the following steps:
+    1. Conduct market and domain research to validate terminology, key industry benchmarks, and user expectations.
+    2. Define a concise, measurable Sprint Goal.
+    3. Formulate a rigorous Definition of Done (DoD) covering code quality, test coverage, documentation, and security.
+    4. Decompose the high-level requirements into a set of INVEST-compliant User Stories.
+    5. For EACH user story, write detailed Gherkin Acceptance Criteria formatted strictly with:
+       - Scenario name
+       - Given: initial system context / preconditions
+       - When: triggering action or input event
+       - Then: observable state transition or response
+    6. Estimate story points using the standard Fibonacci sequence (1, 2, 3, 5, 8, 13) and prioritize using MoSCoW.
+    7. Document any domain-specific nuances, edge cases, and technical notes.
+    
+    Structure your entire response strictly according to the SprintBacklog Pydantic schema.
+  expected_output: >
+    A fully populated SprintBacklog object containing the sprint goal, definition of done, prioritized user stories 
+    with Gherkin acceptance criteria, Fibonacci story points, and total committed velocity.
+  agent: product_owner
+
+architecture_design_task:
+  description: >
+    Review the refined SprintBacklog produced by the Product Owner and architect a production-ready, clean system blueprint.
+    
+    Execute the following steps:
+    1. Define the system architecture pattern (e.g., Clean Architecture / Layered Domain Model) and describe component boundaries.
+    2. Choose the optimal modern technology stack (e.g., Python 3.12+, FastAPI, SQLAlchemy/SQLModel, PostgreSQL, Redis, Pydantic v2).
+    3. Design normalized database schemas with table names, explicit column types, primary/foreign keys, and indexing recommendations.
+    4. Specify RESTful API endpoint contracts including HTTP methods, paths, summary, request body schemas, and HTTP 200/error responses.
+    5. Formulate Non-Functional Requirements (NFRs) across Security (auth, RBAC, input sanitization), Scalability (connection pooling, caching), Observability (structured JSON logging, health checks), and Performance.
+    6. Define the exact project directory and file structure following professional Python packaging conventions.
+    
+    Structure your entire response strictly according to the ArchitectureSpec Pydantic schema.
+  expected_output: >
+    A fully populated ArchitectureSpec object containing system overview, architectural pattern, component boundaries, 
+    data models, API endpoints, non-functional requirements, and project directory structure.
+  agent: system_architect
+
+sprint_implementation_task:
+  description: >
+    Implement the complete, production-ready source code for all User Stories in the SprintBacklog 
+    in strict adherence to the ArchitectureSpec provided by the System Architect.
+    
+    Execute the following steps:
+    1. Review the sprint goal, user stories, Gherkin acceptance criteria, and technical blueprint.
+    2. Generate full, production-grade source code for every required application file (e.g., domain models, database schemas, 
+       service layer / business logic, API routers, and application configuration).
+    3. Adhere strictly to SOLID principles, dependency injection, and PEP 8 guidelines.
+    4. Use comprehensive Python typing (Pydantic models, typing hints, dataclasses).
+    5. Implement robust defensive programming: validate inputs, handle edge cases, and raise explicit custom domain exceptions.
+    6. DO NOT use placeholders, stubbed ellipses (...), or 'TODO' blocks. Every file must contain complete, executable logic.
+    7. Provide concrete local setup and run instructions.
+    
+    Structure your entire response strictly according to the SprintImplementation Pydantic schema.
+  expected_output: >
+    A fully populated SprintImplementation object containing an executive summary, technology choices, 
+    local setup instructions, and an exhaustive list of complete, non-stubbed source code files.
+  agent: senior_developer
+
+qa_verification_task:
+  description: >
+    Execute an exhaustive Quality Assurance and Security audit on the source code generated in sprint_implementation_task, 
+    validating every single Acceptance Criterion defined in backlog_refinement_task.
+    
+    Execute the following steps:
+    1. Map each user story and Gherkin scenario to automated pytest test suites (unit and integration tests).
+    2. Write complete, executable test code employing pytest fixtures, test database setup/teardown, and mock services where appropriate.
+    3. Test happy paths, boundary constraints, invalid input rejections, and expected exception triggers.
+    4. Conduct a static security audit evaluating code against the OWASP Top 10 (SQL injection, broken access control, data exposure, cryptographic failures).
+    5. Document any defects or discrepancies discovered, categorizing by severity (CRITICAL, HIGH, MEDIUM, LOW) with concrete reproduction and remediation steps.
+    6. Calculate total tests, passes, failures, estimated coverage percentage, and issue a formal Sign-Off decision (APPROVED, APPROVED_WITH_CONDITIONS, or REJECTED).
+    
+    Structure your entire response strictly according to the QAReport Pydantic schema.
+  expected_output: >
+    A fully populated QAReport object containing total test counts, coverage percentage, comprehensive pytest suites 
+    mapped to acceptance criteria, OWASP security evaluation, defect items, and formal sign-off status.
+  agent: qa_engineer
+
+deployment_and_sprint_review_task:
+  description: >
+    Synthesize the technical architecture, implemented source code, and QA audit to build production-grade DevOps artifacts 
+    and conduct the Sprint Governance / Sprint Review.
+    
+    Execute the following steps:
+    1. Create a production-hardened, multi-stage Dockerfile:
+       - Minimal base image (e.g., python:3.12-slim or distroless)
+       - Dedicated non-root user execution
+       - uv-based caching or virtualenv isolation
+       - Proper signal handling and health check directive
+    2. Generate a docker-compose.yml file orchestrating the application, backing database (e.g., PostgreSQL 16), 
+       caching layer (e.g., Redis), and persistent volume mounts.
+    3. Generate a robust GitHub Actions CI/CD workflow (.github/workflows/ci.yml) incorporating linting (ruff), 
+       type checking (mypy), test execution (pytest), container vulnerability scanning (Trivy), and container image build.
+    4. Generate a comprehensive .env.example file with documented defaults.
+    5. Calculate a composite Release Readiness Score (0-100) based on test pass rate, defect severity, and deployment automation.
+    6. Compile the Sprint Review Summary: evaluate sprint goal achievement, summarize delivered business value, 
+       and formulate actionable Sprint Retrospective observations (Kaizen / continuous improvement).
+    7. Make the final binary Release Sign-Off determination.
+    
+    Structure your entire response strictly according to the SprintReleasePackage Pydantic schema.
+  expected_output: >
+    A fully populated SprintReleasePackage object containing the Dockerfile, docker-compose.yml, GitHub Actions workflow, 
+    environment template, release readiness score, sprint review summary, retrospective insights, and release sign-off.
+  agent: devops_release_lead
