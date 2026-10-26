@@ -10,7 +10,6 @@ from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai.tools import tool
 from crewai_tools import (
-    CodeInterpreterTool,
     DirectoryReadTool,
     FileReadTool,
     FileWriterTool,
@@ -57,7 +56,6 @@ class AgileDevCrew:
         self.file_read_tool = FileReadTool()
         self.file_write_tool = FileWriterTool()
         self.dir_read_tool = DirectoryReadTool()
-        self.code_interpreter_tool = CodeInterpreterTool()
         self.search_tool = initialize_search_tool()
 
     # ==========================================================================
@@ -103,7 +101,8 @@ class AgileDevCrew:
         """Backend Developer: Implements ORM models, domain logic, and FastAPI REST endpoints."""
         return Agent(
             config=self.agents_config["backend_developer"],
-            tools=[self.file_write_tool, self.file_read_tool, self.code_interpreter_tool],
+            tools=[self.file_write_tool, self.file_read_tool],
+            allow_code_execution=True,
             verbose=True,
             memory=True,
         )
@@ -113,7 +112,8 @@ class AgileDevCrew:
         """Frontend Developer: Implements Next.js/React components and API integration."""
         return Agent(
             config=self.agents_config["frontend_developer"],
-            tools=[self.file_write_tool, self.file_read_tool, self.code_interpreter_tool],
+            tools=[self.file_write_tool, self.file_read_tool],
+            allow_code_execution=True,
             verbose=True,
             memory=True,
         )
@@ -127,7 +127,8 @@ class AgileDevCrew:
         """QA Engineer: Executes automated pytest suites and OWASP/a11y audits."""
         return Agent(
             config=self.agents_config["qa_engineer"],
-            tools=[self.code_interpreter_tool, self.file_read_tool, self.file_write_tool],
+            tools=[self.file_read_tool, self.file_write_tool],
+            allow_code_execution=True,
             verbose=True,
             memory=True,
         )
